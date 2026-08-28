@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     debug: bool = False
 
     database_url: str = (
-        "postgresql+psycopg://postgres:postgres@localhost:5432/asyncapi_engine"
+        "postgresql+psycopg://u0_a468@localhost:5432/asyncapi_engine"
     )
 
     redis_url: str = "redis://localhost:6379/0"
