@@ -28,6 +28,7 @@ async def test_successful_job_is_completed():
     job.id = 10
     job.job_type = "example"
     job.payload = '{"hello": "world"}'
+    job.status = "pending"
 
     attempt = MagicMock()
     attempt.attempt_number = 1
@@ -77,6 +78,7 @@ async def test_unsupported_job_type_fails_job():
     job.id = 20
     job.job_type = "unsupported"
     job.payload = "{}"
+    job.status = "pending"
 
     attempt = MagicMock()
 
@@ -107,3 +109,31 @@ async def test_unsupported_job_type_fails_job():
     )
 
     session.commit.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_processing_already_processing_job_is_skipped():
+    session = MagicMock()
+    processor = JobProcessor(session)
+
+    job = MagicMock()
+    job.id = 30
+    job.job_type = "example"
+    job.payload = '{"hello": "world"}'
+    job.status = "processing"
+
+    processor.job_repository.get_by_id = AsyncMock(
+        return_value=job,
+    )
+    processor.job_attempt_repository.get_latest_for_job = AsyncMock(
+        return_value=MagicMock(attempt_number=1),
+    )
+    processor.job_attempt_repository.create = AsyncMock()
+    processor.job_repository.update_status = AsyncMock()
+    session.commit = AsyncMock()
+
+    await processor.process(30)
+
+    processor.job_attempt_repository.create.assert_not_awaited()
+    processor.job_repository.update_status.assert_not_awaited()
+    session.commit.assert_not_awaited()
+

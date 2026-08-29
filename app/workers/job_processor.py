@@ -16,6 +16,9 @@ class JobProcessor:
         if job is None:
             return
 
+        if job.status != "pending":
+            return
+
         latest_attempt = (
             await self.job_attempt_repository.get_latest_for_job(
                 job_id=job.id,
