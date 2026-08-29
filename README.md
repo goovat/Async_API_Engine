@@ -262,7 +262,7 @@ The project currently has a comprehensive automated test suite covering API beha
 
 Current verification:
 
-54 passed
+53 passed
 
 Run the complete test suite with:
 
@@ -270,7 +270,7 @@ pytest -q
 
 Expected result:
 
-54 passed
+53 passed
 
 Focused test suites can also be executed independently:
 
