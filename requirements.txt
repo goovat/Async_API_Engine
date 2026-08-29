@@ -12,3 +12,5 @@ pytest-asyncio
 pwdlib[argon2]
 email-validator
 prometheus-client
+
+PyJWT==2.10.1
