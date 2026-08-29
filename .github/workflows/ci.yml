@@ -66,3 +66,7 @@ jobs:
           JWT_SECRET_KEY: ci-test-secret-key
         run: |
           pytest -q
+
+      - name: Build Docker image
+        run: |
+          docker build -t async-api-engine:ci .
