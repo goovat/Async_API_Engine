@@ -11,3 +11,4 @@ pytest==9.1.1
 pytest-asyncio
 pwdlib[argon2]
 email-validator
+prometheus-client
