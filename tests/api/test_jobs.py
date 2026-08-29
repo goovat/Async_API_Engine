@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from app.api.dependencies.database import get_db
 from app.database.session import AsyncSessionLocal
 from app.models.job import Job
+from app.models.job_attempt import JobAttempt
 from app.main import app
 
 
@@ -317,6 +318,118 @@ def test_authenticated_user_can_retry_their_job(client):
 
     client.queue.enqueue.assert_awaited_once_with(job["id"])
 
+
+def test_processing_job_retry_returns_conflict(client):
+    _, token = register_and_login(client)
+
+    job = create_job(client, token)
+    client.queue.enqueue.reset_mock()
+
+    async def mark_job_processing():
+        async with AsyncSessionLocal() as session:
+            db_job = await session.get(Job, job["id"])
+
+            if db_job is None:
+                raise RuntimeError("Test job was not created.")
+
+            db_job.status = "processing"
+            await session.commit()
+
+    import asyncio
+    asyncio.run(mark_job_processing())
+
+    response = client.post(
+        f"/jobs/{job['id']}/retry",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Only failed jobs can be retried"
+    )
+
+    client.queue.enqueue.assert_not_awaited()
+
+
+def test_completed_job_retry_returns_conflict(client):
+    _, token = register_and_login(client)
+
+    job = create_job(client, token)
+    client.queue.enqueue.reset_mock()
+
+    async def mark_job_completed():
+        async with AsyncSessionLocal() as session:
+            db_job = await session.get(Job, job["id"])
+
+            if db_job is None:
+                raise RuntimeError("Test job was not created.")
+
+            db_job.status = "completed"
+            await session.commit()
+
+    import asyncio
+    asyncio.run(mark_job_completed())
+
+    response = client.post(
+        f"/jobs/{job['id']}/retry",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Only failed jobs can be retried"
+    )
+
+    client.queue.enqueue.assert_not_awaited()
+
+
+def test_max_retry_attempts_returns_conflict(client):
+    _, token = register_and_login(client)
+
+    job = create_job(client, token)
+    client.queue.enqueue.reset_mock()
+
+    async def prepare_failed_job_with_max_attempts():
+        async with AsyncSessionLocal() as session:
+            db_job = await session.get(Job, job["id"])
+
+            if db_job is None:
+                raise RuntimeError("Test job was not created.")
+
+            db_job.status = "failed"
+
+            for attempt_number in range(1, 4):
+                session.add(
+                    JobAttempt(
+                        job_id=job["id"],
+                        attempt_number=attempt_number,
+                        status="failed",
+                        error_message="temporary failure",
+                    )
+                )
+
+            await session.commit()
+
+    import asyncio
+    asyncio.run(prepare_failed_job_with_max_attempts())
+
+    response = client.post(
+        f"/jobs/{job['id']}/retry",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Maximum retry attempts reached"
+    )
+
+    client.queue.enqueue.assert_not_awaited()
 
 def test_user_cannot_retry_another_users_job(client):
     _, first_token = register_and_login(client)

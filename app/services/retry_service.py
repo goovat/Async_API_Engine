@@ -1,6 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.exceptions.job_errors import JobNotFoundError
+from app.exceptions.job_errors import (
+    JobNotFoundError,
+    JobNotRetryableError,
+    MaxRetryAttemptsError,
+)
 from app.models.job import Job
 from app.repositories.job_attempt_repository import JobAttemptRepository
 from app.repositories.job_repository import JobRepository
@@ -31,7 +35,7 @@ class RetryService:
             raise JobNotFoundError
 
         if job.status != "failed":
-            raise ValueError(
+            raise JobNotRetryableError(
                 "Only failed jobs can be retried"
             )
 
@@ -45,7 +49,7 @@ class RetryService:
             latest_attempt is not None
             and latest_attempt.attempt_number >= 3
         ):
-            raise ValueError(
+            raise MaxRetryAttemptsError(
                 "Maximum retry attempts reached"
             )
 

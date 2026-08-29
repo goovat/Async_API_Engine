@@ -2,7 +2,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.exceptions.job_errors import JobNotFoundError
+from app.exceptions.job_errors import (
+    JobNotFoundError,
+    JobNotRetryableError,
+    MaxRetryAttemptsError,
+)
 from app.services.retry_service import RetryService
 
 
@@ -142,7 +146,10 @@ async def test_retry_processing_job_is_rejected():
     )
     service.job_repository.update_status = AsyncMock()
 
-    with pytest.raises(ValueError, match="Only failed jobs can be retried"):
+    with pytest.raises(
+        JobNotRetryableError,
+        match="Only failed jobs can be retried",
+    ):
         await service.retry_job(
             job_id=10,
             user_id=1,
@@ -169,7 +176,10 @@ async def test_retry_completed_job_is_rejected():
     )
     service.job_repository.update_status = AsyncMock()
 
-    with pytest.raises(ValueError, match="Only failed jobs can be retried"):
+    with pytest.raises(
+        JobNotRetryableError,
+        match="Only failed jobs can be retried",
+    ):
         await service.retry_job(
             job_id=10,
             user_id=1,
@@ -243,7 +253,7 @@ async def test_retry_is_rejected_when_max_attempts_reached():
     service.job_repository.update_status = AsyncMock()
 
     with pytest.raises(
-        ValueError,
+        MaxRetryAttemptsError,
         match="Maximum retry attempts reached",
     ):
         await service.retry_job(

@@ -5,7 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.authentication import get_current_user
 from app.api.dependencies.database import get_db
-from app.exceptions.job_errors import JobNotFoundError
+from app.exceptions.job_errors import (
+    JobNotFoundError,
+    JobRetryError,
+)
 from app.models.user import User
 from app.schemas.job_attempt import JobAttemptResponse
 from app.schemas.job_create import JobCreateRequest
@@ -140,6 +143,11 @@ async def retry_job(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job not found",
+        )
+    except JobRetryError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
         )
 
     await session.commit()
