@@ -1,6 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.observability.logging import get_logger
+from app.observability.metrics import (
+    JOBS_PROCESSED_TOTAL,
+    JOB_ATTEMPTS_TOTAL,
+)
 from app.repositories.job_attempt_repository import JobAttemptRepository
 from app.repositories.job_repository import JobRepository
 
@@ -50,6 +54,8 @@ class JobProcessor:
             status="processing",
         )
 
+        JOB_ATTEMPTS_TOTAL.labels(status="started").inc()
+
         logger.info(
             "job_attempt_started job_id=%s attempt_number=%s",
             job.id,
@@ -71,6 +77,9 @@ class JobProcessor:
                 error_message=str(exc),
             )
 
+            JOB_ATTEMPTS_TOTAL.labels(status="failed").inc()
+            JOBS_PROCESSED_TOTAL.labels(status="failed").inc()
+
             await self.job_repository.update_status(
                 job=job,
                 status="failed",
@@ -91,6 +100,9 @@ class JobProcessor:
             attempt=attempt,
             status="completed",
         )
+
+        JOB_ATTEMPTS_TOTAL.labels(status="completed").inc()
+        JOBS_PROCESSED_TOTAL.labels(status="completed").inc()
 
         await self.job_repository.update_status(
             job=job,
