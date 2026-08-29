@@ -35,6 +35,20 @@ class RetryService:
                 "Only failed jobs can be retried"
             )
 
+        latest_attempt = (
+            await self.job_attempt_repository.get_latest_for_job(
+                job_id=job.id,
+            )
+        )
+
+        if (
+            latest_attempt is not None
+            and latest_attempt.attempt_number >= 3
+        ):
+            raise ValueError(
+                "Maximum retry attempts reached"
+            )
+
         await self.job_repository.update_status(
             job=job,
             status="pending",
