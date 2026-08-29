@@ -1,3 +1,4 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.idempotency_key import IdempotencyKey
@@ -21,9 +22,21 @@ class IdempotencyService:
         if existing is not None:
             return existing, False
 
-        record = await self.repository.create(
-            user_id=user_id,
-            key=key,
-        )
+        try:
+            async with self.repository.session.begin_nested():
+                record = await self.repository.create(
+                    user_id=user_id,
+                    key=key,
+                )
+        except IntegrityError:
+            existing = await self.repository.get(
+                user_id=user_id,
+                key=key,
+            )
+
+            if existing is None:
+                raise
+
+            return existing, False
 
         return record, True
