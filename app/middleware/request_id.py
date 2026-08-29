@@ -5,6 +5,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
 from app.observability.logging import get_logger
+from app.observability.metrics import (
+    HTTP_REQUEST_DURATION_SECONDS,
+    HTTP_REQUESTS_TOTAL,
+)
 
 
 logger = get_logger("http")
@@ -21,7 +25,20 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
         except Exception:
-            duration_ms = (time.perf_counter() - start) * 1000
+            duration_seconds = time.perf_counter() - start
+
+            HTTP_REQUEST_DURATION_SECONDS.labels(
+                method=request.method,
+                path=request.url.path,
+            ).observe(duration_seconds)
+
+            HTTP_REQUESTS_TOTAL.labels(
+                method=request.method,
+                path=request.url.path,
+                status="500",
+            ).inc()
+
+            duration_ms = duration_seconds * 1000
 
             logger.error(
                 "%s %s failed duration_ms=%.2f",
@@ -34,7 +51,18 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
             raise
 
-        duration_ms = (time.perf_counter() - start) * 1000
+        duration_seconds = time.perf_counter() - start
+
+        HTTP_REQUEST_DURATION_SECONDS.labels(
+            method=request.method,
+            path=request.url.path,
+        ).observe(duration_seconds)
+
+        HTTP_REQUESTS_TOTAL.labels(
+            method=request.method,
+            path=request.url.path,
+            status=str(response.status_code),
+        ).inc()
 
         response.headers["X-Request-ID"] = request_id
 
@@ -43,7 +71,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
             request.method,
             request.url.path,
             response.status_code,
-            duration_ms,
+            duration_seconds * 1000,
             extra={"request_id": request_id},
         )
 
