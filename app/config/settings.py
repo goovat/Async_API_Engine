@@ -14,6 +14,10 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
 
+    jwt_secret_key: str = "development-only-secret-key-change-me-32-bytes"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 30
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
