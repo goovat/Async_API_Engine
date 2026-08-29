@@ -10,6 +10,17 @@ class Settings(BaseSettings):
 
     database_url: str
 
+    @property
+    def sqlalchemy_database_url(self) -> str:
+        if self.database_url.startswith("postgresql://"):
+            return self.database_url.replace(
+                "postgresql://",
+                "postgresql+psycopg://",
+                1,
+            )
+
+        return self.database_url
+
     redis_url: str = "redis://localhost:6379/0"
 
     jwt_secret_key: str = "development-only-secret-key-change-me-32-bytes"
