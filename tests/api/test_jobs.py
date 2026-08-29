@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.api.dependencies.database import get_db
 from app.database.session import AsyncSessionLocal
+from app.models.job import Job
 from app.main import app
 
 
@@ -285,6 +286,19 @@ def test_authenticated_user_can_retry_their_job(client):
     _, token = register_and_login(client)
 
     job = create_job(client, token)
+
+    async def mark_job_failed():
+        async with AsyncSessionLocal() as session:
+            db_job = await session.get(Job, job["id"])
+
+            if db_job is None:
+                raise RuntimeError("Test job was not created.")
+
+            db_job.status = "failed"
+            await session.commit()
+
+    import asyncio
+    asyncio.run(mark_job_failed())
 
     response = client.post(
         f"/jobs/{job['id']}/retry",

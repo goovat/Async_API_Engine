@@ -30,6 +30,11 @@ class RetryService:
         if job is None:
             raise JobNotFoundError
 
+        if job.status != "failed":
+            raise ValueError(
+                "Only failed jobs can be retried"
+            )
+
         await self.job_repository.update_status(
             job=job,
             status="pending",
