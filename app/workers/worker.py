@@ -1,7 +1,12 @@
 import asyncio
+import time
 
 from app.database.session import AsyncSessionLocal
 from app.observability.logging import get_logger
+from app.observability.metrics import (
+    WORKER_JOB_DURATION_SECONDS,
+    WORKER_JOBS_TOTAL,
+)
 from app.workers.job_processor import JobProcessor
 from app.workers.queue import JobQueue
 
@@ -30,11 +35,19 @@ class Worker:
             job_id,
         )
 
+        start = time.perf_counter()
+
         try:
             async with AsyncSessionLocal() as session:
                 processor = JobProcessor(session)
                 await processor.process(job_id)
+
         except Exception as exc:
+            duration_seconds = time.perf_counter() - start
+
+            WORKER_JOB_DURATION_SECONDS.observe(duration_seconds)
+            WORKER_JOBS_TOTAL.labels(status="failed").inc()
+
             logger.error(
                 "worker_job_failed job_id=%s error=%s",
                 job_id,
@@ -51,13 +64,17 @@ class Worker:
 
             raise
 
+        duration_seconds = time.perf_counter() - start
+
+        WORKER_JOB_DURATION_SECONDS.observe(duration_seconds)
+        WORKER_JOBS_TOTAL.labels(status="completed").inc()
+
         logger.info(
             "worker_job_processed job_id=%s",
             job_id,
         )
 
         return True
-
 
     async def run_forever(
         self,

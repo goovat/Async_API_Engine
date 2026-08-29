@@ -24,3 +24,16 @@ JOB_ATTEMPTS_TOTAL = Counter(
     "Total number of job attempts.",
     ["status"],
 )
+
+
+WORKER_JOB_DURATION_SECONDS = Histogram(
+    "asyncapi_worker_job_duration_seconds",
+    "Worker job processing duration in seconds.",
+)
+
+
+WORKER_JOBS_TOTAL = Counter(
+    "asyncapi_worker_jobs_total",
+    "Total number of jobs handled by the worker.",
+    ["status"],
+)
