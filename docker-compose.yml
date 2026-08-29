@@ -1,0 +1,85 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: asyncapi
+      POSTGRES_PASSWORD: asyncapi
+      POSTGRES_DB: asyncapi_engine
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U asyncapi -d asyncapi_engine"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      APP_NAME: AsyncAPI Engine
+      APP_VERSION: 0.1.0
+      DEBUG: "false"
+      DATABASE_URL: postgresql+psycopg://asyncapi:asyncapi@postgres:5432/asyncapi_engine
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: development-only-secret-key-change-me-32-bytes
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: "30"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: .
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+    environment:
+      APP_NAME: AsyncAPI Engine
+      APP_VERSION: 0.1.0
+      DEBUG: "false"
+      DATABASE_URL: postgresql+psycopg://asyncapi:asyncapi@postgres:5432/asyncapi_engine
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: development-only-secret-key-change-me-32-bytes
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: "30"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build: .
+    command: ["python", "-m", "app.workers"]
+    environment:
+      APP_NAME: AsyncAPI Engine
+      APP_VERSION: 0.1.0
+      DEBUG: "false"
+      DATABASE_URL: postgresql+psycopg://asyncapi:asyncapi@postgres:5432/asyncapi_engine
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: development-only-secret-key-change-me-32-bytes
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: "30"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
