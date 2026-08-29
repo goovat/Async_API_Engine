@@ -34,6 +34,9 @@ class LoopSafeRedis:
     async def llen(self, *args):
         return await self._get_client().llen(*args)
 
+    async def ping(self) -> bool:
+        return await self._get_client().ping()
+
     async def close(self) -> None:
         clients = list(self._clients.values())
         self._clients.clear()

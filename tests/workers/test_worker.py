@@ -138,3 +138,87 @@ async def test_run_forever_survives_unexpected_processing_error():
 
     assert calls == 2
     assert stop_event.is_set()
+
+
+@pytest.mark.asyncio
+async def test_worker_logs_when_queue_is_empty(caplog):
+    queue = MagicMock()
+    queue.dequeue = AsyncMock(return_value=None)
+
+    worker = Worker(queue)
+
+    with caplog.at_level("INFO", logger="asyncapi.worker"):
+        result = await worker.process_next()
+
+    assert result is False
+    assert "worker_queue_empty" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_worker_logs_successful_processing(caplog):
+    queue = MagicMock()
+    queue.dequeue = AsyncMock(return_value=123)
+
+    session = MagicMock()
+
+    session_context = MagicMock()
+    session_context.__aenter__ = AsyncMock(return_value=session)
+    session_context.__aexit__ = AsyncMock(return_value=None)
+
+    with patch(
+        "app.workers.worker.AsyncSessionLocal",
+        return_value=session_context,
+    ), patch(
+        "app.workers.worker.JobProcessor",
+    ) as processor_class:
+        processor = processor_class.return_value
+        processor.process = AsyncMock()
+
+        worker = Worker(queue)
+
+        with caplog.at_level("INFO", logger="asyncapi.worker"):
+            result = await worker.process_next()
+
+    assert result is True
+    assert "worker_job_dequeued job_id=123" in caplog.text
+    assert "worker_job_processed job_id=123" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_worker_logs_and_requeues_failed_processing(caplog):
+    queue = MagicMock()
+    queue.dequeue = AsyncMock(return_value=789)
+    queue.enqueue = AsyncMock()
+
+    session = MagicMock()
+
+    session_context = MagicMock()
+    session_context.__aenter__ = AsyncMock(return_value=session)
+    session_context.__aexit__ = AsyncMock(return_value=None)
+
+    with patch(
+        "app.workers.worker.AsyncSessionLocal",
+        return_value=session_context,
+    ), patch(
+        "app.workers.worker.JobProcessor",
+    ) as processor_class:
+        processor = processor_class.return_value
+        processor.process = AsyncMock(
+            side_effect=RuntimeError("temporary processing failure"),
+        )
+
+        worker = Worker(queue)
+
+        with caplog.at_level("INFO", logger="asyncapi.worker"):
+            with pytest.raises(
+                RuntimeError,
+                match="temporary processing failure",
+            ):
+                await worker.process_next()
+
+    assert "worker_job_dequeued job_id=789" in caplog.text
+    assert (
+        "worker_job_failed job_id=789 "
+        "error=temporary processing failure"
+    ) in caplog.text
+    assert "worker_job_requeued job_id=789" in caplog.text

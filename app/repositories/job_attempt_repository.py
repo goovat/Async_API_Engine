@@ -23,6 +23,18 @@ class JobAttemptRepository:
 
         return result.scalar_one_or_none()
 
+    async def get_all_for_job(
+        self,
+        job_id: int,
+    ) -> list[JobAttempt]:
+        result = await self.session.execute(
+            select(JobAttempt)
+            .where(JobAttempt.job_id == job_id)
+            .order_by(JobAttempt.attempt_number.asc())
+        )
+
+        return list(result.scalars().all())
+
     async def create(
         self,
         job_id: int,

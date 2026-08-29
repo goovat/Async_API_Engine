@@ -7,9 +7,11 @@ from app.api.dependencies.authentication import get_current_user
 from app.api.dependencies.database import get_db
 from app.exceptions.job_errors import JobNotFoundError
 from app.models.user import User
+from app.schemas.job_attempt import JobAttemptResponse
 from app.schemas.job_create import JobCreateRequest
 from app.schemas.job_response import JobResponse
 from app.schemas.job_status import JobStatusResponse
+from app.services.job_attempt_service import JobAttemptService
 from app.services.job_service import JobService
 from app.services.job_status_service import JobStatusService
 from app.services.retry_service import RetryService
@@ -92,6 +94,31 @@ async def get_job_status(
         )
 
     return job
+
+@router.get(
+    "/{job_id}/attempts",
+    response_model=list[JobAttemptResponse],
+)
+async def get_job_attempts(
+    job_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    service = JobAttemptService(session)
+
+    try:
+        attempts = await service.get_attempts(
+            job_id=job_id,
+            user_id=current_user.id,
+        )
+    except JobNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found",
+        )
+
+    return attempts
+
 
 @router.post(
     "/{job_id}/retry",

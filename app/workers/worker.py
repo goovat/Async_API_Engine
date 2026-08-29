@@ -1,8 +1,12 @@
 import asyncio
 
 from app.database.session import AsyncSessionLocal
+from app.observability.logging import get_logger
 from app.workers.job_processor import JobProcessor
 from app.workers.queue import JobQueue
+
+
+logger = get_logger("worker")
 
 
 class Worker:
@@ -18,15 +22,39 @@ class Worker:
         job_id = await self.queue.dequeue()
 
         if job_id is None:
+            logger.info("worker_queue_empty")
             return False
+
+        logger.info(
+            "worker_job_dequeued job_id=%s",
+            job_id,
+        )
 
         try:
             async with AsyncSessionLocal() as session:
                 processor = JobProcessor(session)
                 await processor.process(job_id)
-        except Exception:
+        except Exception as exc:
+            logger.error(
+                "worker_job_failed job_id=%s error=%s",
+                job_id,
+                str(exc),
+                exc_info=True,
+            )
+
             await self.queue.enqueue(job_id)
+
+            logger.info(
+                "worker_job_requeued job_id=%s",
+                job_id,
+            )
+
             raise
+
+        logger.info(
+            "worker_job_processed job_id=%s",
+            job_id,
+        )
 
         return True
 

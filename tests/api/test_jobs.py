@@ -475,3 +475,113 @@ def test_different_idempotency_keys_create_different_jobs(client):
     client.queue.enqueue.assert_awaited_once_with(
         second_response.json()["id"]
     )
+
+
+def test_authenticated_user_can_get_job_attempts(client):
+    _, token = register_and_login(client)
+
+    job = create_job(client, token)
+
+    response = client.get(
+        f"/jobs/{job['id']}/attempts",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_user_cannot_get_another_users_job_attempts(client):
+    _, first_token = register_and_login(client)
+
+    job = create_job(client, first_token)
+
+    _, second_token = register_and_login(client)
+
+    response = client.get(
+        f"/jobs/{job['id']}/attempts",
+        headers={
+            "Authorization": f"Bearer {second_token}",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Job not found"
+
+
+def test_missing_job_attempts_returns_not_found(client):
+    _, token = register_and_login(client)
+
+    response = client.get(
+        "/jobs/999999999/attempts",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Job not found"
+
+
+def test_unauthenticated_user_cannot_get_job_attempts(client):
+    response = client.get("/jobs/1/attempts")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid authentication credentials"
+
+
+def test_authenticated_user_can_get_job_attempts(client):
+    _, token = register_and_login(client)
+
+    job = create_job(client, token)
+
+    response = client.get(
+        f"/jobs/{job['id']}/attempts",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_user_cannot_get_another_users_job_attempts(client):
+    _, first_token = register_and_login(client)
+
+    job = create_job(client, first_token)
+
+    _, second_token = register_and_login(client)
+
+    response = client.get(
+        f"/jobs/{job['id']}/attempts",
+        headers={
+            "Authorization": f"Bearer {second_token}",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Job not found"
+
+
+def test_missing_job_attempts_returns_not_found(client):
+    _, token = register_and_login(client)
+
+    response = client.get(
+        "/jobs/999999999/attempts",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Job not found"
+
+
+def test_unauthenticated_user_cannot_get_job_attempts(client):
+    response = client.get("/jobs/1/attempts")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid authentication credentials"

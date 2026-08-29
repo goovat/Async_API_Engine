@@ -10,13 +10,13 @@ async def test_missing_job_is_ignored():
     session = MagicMock()
     processor = JobProcessor(session)
 
-    processor.job_repository.get_by_id = AsyncMock(
+    processor.job_repository.get_by_id_for_update = AsyncMock(
         return_value=None,
     )
 
     await processor.process(999)
 
-    processor.job_repository.get_by_id.assert_awaited_once_with(999)
+    processor.job_repository.get_by_id_for_update.assert_awaited_once_with(999)
 
 
 @pytest.mark.asyncio
@@ -33,7 +33,7 @@ async def test_successful_job_is_completed():
     attempt = MagicMock()
     attempt.attempt_number = 1
 
-    processor.job_repository.get_by_id = AsyncMock(
+    processor.job_repository.get_by_id_for_update = AsyncMock(
         return_value=job,
     )
     processor.job_attempt_repository.get_latest_for_job = AsyncMock(
@@ -82,7 +82,7 @@ async def test_unsupported_job_type_fails_job():
 
     attempt = MagicMock()
 
-    processor.job_repository.get_by_id = AsyncMock(
+    processor.job_repository.get_by_id_for_update = AsyncMock(
         return_value=job,
     )
     processor.job_attempt_repository.get_latest_for_job = AsyncMock(
@@ -121,7 +121,7 @@ async def test_processing_already_processing_job_is_skipped():
     job.payload = '{"hello": "world"}'
     job.status = "processing"
 
-    processor.job_repository.get_by_id = AsyncMock(
+    processor.job_repository.get_by_id_for_update = AsyncMock(
         return_value=job,
     )
     processor.job_attempt_repository.get_latest_for_job = AsyncMock(
@@ -137,3 +137,87 @@ async def test_processing_already_processing_job_is_skipped():
     processor.job_repository.update_status.assert_not_awaited()
     session.commit.assert_not_awaited()
 
+
+
+@pytest.mark.asyncio
+async def test_missing_job_is_logged(caplog):
+    session = MagicMock()
+    processor = JobProcessor(session)
+
+    processor.job_repository.get_by_id_for_update = AsyncMock(
+        return_value=None,
+    )
+
+    with caplog.at_level("INFO", logger="asyncapi.job_processor"):
+        await processor.process(999)
+
+    assert "job_not_found job_id=999" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_completed_job_is_logged(caplog):
+    session = MagicMock()
+    processor = JobProcessor(session)
+
+    job = MagicMock()
+    job.id = 40
+    job.job_type = "example"
+    job.payload = "{}"
+    job.status = "pending"
+
+    attempt = MagicMock()
+    attempt.attempt_number = 1
+
+    processor.job_repository.get_by_id_for_update = AsyncMock(
+        return_value=job,
+    )
+    processor.job_attempt_repository.get_latest_for_job = AsyncMock(
+        return_value=None,
+    )
+    processor.job_attempt_repository.create = AsyncMock(
+        return_value=attempt,
+    )
+    processor.job_attempt_repository.update_status = AsyncMock()
+    processor.job_repository.update_status = AsyncMock()
+    session.commit = AsyncMock()
+
+    with caplog.at_level("INFO", logger="asyncapi.job_processor"):
+        await processor.process(40)
+
+    assert "job_attempt_started job_id=40 attempt_number=1" in caplog.text
+    assert "job_completed job_id=40 attempt_number=1" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_failed_job_is_logged(caplog):
+    session = MagicMock()
+    processor = JobProcessor(session)
+
+    job = MagicMock()
+    job.id = 50
+    job.job_type = "unsupported"
+    job.payload = "{}"
+    job.status = "pending"
+
+    attempt = MagicMock()
+
+    processor.job_repository.get_by_id_for_update = AsyncMock(
+        return_value=job,
+    )
+    processor.job_attempt_repository.get_latest_for_job = AsyncMock(
+        return_value=None,
+    )
+    processor.job_attempt_repository.create = AsyncMock(
+        return_value=attempt,
+    )
+    processor.job_attempt_repository.update_status = AsyncMock()
+    processor.job_repository.update_status = AsyncMock()
+    session.commit = AsyncMock()
+
+    with caplog.at_level("INFO", logger="asyncapi.job_processor"):
+        await processor.process(50)
+
+    assert (
+        "job_failed job_id=50 attempt_number=1 "
+        "error=Unsupported job type: unsupported"
+    ) in caplog.text

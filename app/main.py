@@ -6,6 +6,8 @@ from app.api.router import router
 from app.config.settings import settings
 from app.database.session import close_database
 from app.redis.client import close_redis
+from app.middleware.request_id import RequestIDMiddleware
+from app.observability.logging import configure_logging
 
 
 @asynccontextmanager
@@ -16,6 +18,8 @@ async def lifespan(app: FastAPI):
     await close_database()
 
 
+configure_logging()
+
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
@@ -23,4 +27,5 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(RequestIDMiddleware)
 app.include_router(router)

@@ -173,3 +173,60 @@ def test_invalid_token_returns_unauthorized(client):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid authentication credentials"
+
+
+def test_readiness_endpoint_reports_healthy_dependencies(client):
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ready",
+        "database": "ok",
+        "redis": "ok",
+    }
+
+
+def test_readiness_endpoint_returns_server_error_when_database_fails(
+    client,
+):
+    from unittest.mock import AsyncMock, patch
+
+    with patch(
+        "app.api.routes.health.AsyncSessionLocal",
+    ) as session_factory:
+        session_context = session_factory.return_value
+        session = session_context.__aenter__.return_value
+        session.execute = AsyncMock(
+            side_effect=RuntimeError("database unavailable"),
+        )
+
+        with patch(
+            "app.api.routes.health.redis_client.ping",
+            new=AsyncMock(),
+        ):
+            response = client.get("/ready")
+
+    assert response.status_code == 500
+
+
+def test_readiness_endpoint_returns_server_error_when_redis_fails(
+    client,
+):
+    from unittest.mock import AsyncMock, patch
+
+    with patch(
+        "app.api.routes.health.AsyncSessionLocal",
+    ) as session_factory:
+        session_context = session_factory.return_value
+        session = session_context.__aenter__.return_value
+        session.execute = AsyncMock()
+
+        with patch(
+            "app.api.routes.health.redis_client.ping",
+            new=AsyncMock(
+                side_effect=RuntimeError("redis unavailable"),
+            ),
+        ):
+            response = client.get("/ready")
+
+    assert response.status_code == 500
