@@ -8,9 +8,7 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     debug: bool = False
 
-    database_url: str = (
-        "postgresql+psycopg://u0_a468@localhost:5432/asyncapi_engine"
-    )
+    database_url: str
 
     redis_url: str = "redis://localhost:6379/0"
 
